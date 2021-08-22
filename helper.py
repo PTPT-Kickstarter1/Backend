@@ -8,6 +8,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import GridSearchCV
 from collections import Counter
+import category_encoders as ce
 import spacy
 from sklearn.model_selection import train_test_split
 import tqdm
@@ -15,8 +16,8 @@ import re
 import numpy as np
 import matplotlib.pyplot as plt
 
-def ohe_cols(X_in):
-    X_out = X_in.copy()
+def ohe_gram_count_cols(X_in):
+    X_out   = X_in.copy()
     columns = X_in.columns
     ohe_cols = []
     alphabet = 'abcdefghijklmnopqrstuvwxyz'
@@ -26,7 +27,7 @@ def ohe_cols(X_in):
         if ('successful' in col) or ('failed' in col) :
             ohe_cols.append(col)
 
-    ohe_df    = X_out[ohe_cols].copy()
+    ohe_df     = X_out[ohe_cols].copy()
     ohe_df_out = pd.DataFrame(columns=ohe_df.columns)
     for col, data in ohe_df.items():
         for index, value in data.items():
@@ -253,18 +254,19 @@ def my_tokenizer(text):
 
 
 def plot_and_add_hi_freq_feature(X_train_in, 
-                                 y_in, 
+                                 y_train_in, 
                                  X_test_in,
                                  feature, 
                                  ngram_range=(1,2),
                                  num_ngrams=50,
                                  figsize=(20,20)):
-    X_train = X_train_in.copy()
-    target_class = ['successful', 'failed']
+    
+    X_train, y_train, X_test = X_train_in.copy(), y_train_in.copy(), X_test_in.copy()
+    target_class             = ['successful', 'failed']
     blurb = {}
     for state in target_class:
-        idx          = (y_in == state)
-        X_state      = X_train.loc[idx]
+        idx          = (y_train == state)
+        X_state      = X_train[idx]
         state_text   = X_state[feature].tolist()
         title        = 'Frequency Distribution of ngrams for ' + state
         
@@ -293,11 +295,11 @@ def plot_and_add_hi_freq_feature(X_train_in,
     }
     vect         = CountVectorizer(**kwargs)
     unique_grams = success + fail
-    n1, n2     = len(X_train), len(X_test_in)
-    X_combined = pd.concat([X_train, X_test_in],ignore_index=True)
-    X_combined = make_feature(X_combined, vect, unique_grams, success, fail, feature)
+    n1, n2       = len(X_train), len(X_test_in)
+    X_combined   = pd.concat([X_train, X_test],ignore_index=True)
+    X_combined   = make_feature(X_combined, vect, unique_grams, success, fail, feature)
     
     X_train = X_combined.iloc[0:n1]
-    X_test = X_combined.iloc[n1:n1 + n2]
+    X_test  = X_combined.iloc[n1:n1 + n2]
 
     return X_train, X_test
