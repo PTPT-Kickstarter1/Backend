@@ -5,36 +5,17 @@ import spacy
 import category_encoders as ce
 import datetime as dt
 from sklearn.ensemble import RandomForestClassifier
-from scipy.stats import randint
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-from sklearn.pipeline import Pipeline
 from helper import *
-from sklearn.svm import LinearSVC
-from sklearn.decomposition import TruncatedSVD
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import Normalizer
 import numpy as np
-import matplotlib.pyplot as plt
-from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.pipeline import make_pipeline
 from sklearn.neighbors import NearestNeighbors
 
-
-# %%
+# %%≠≠
 # Load Spacy Large:
 nlp       = spacy.load("en_core_web_lg")
 
-# Load training and test data frames in from pickle:
-target    = 'state'
-df_train  = pd.read_pickle('./df_train.pkl')
-df_test   = pd.read_pickle('./df_test.pkl')
-
-#  Seperate Train/Test into X / y :
-X_train, y_train = df_train.drop(columns=[target]), df_train[target]
-X_test, y_test   = df_test.drop(columns=[target]), df_test[target]
-
-# %%
 # Use NLP cols to create new feature counting most occurence of most common but unique to successful/failed campaigns
 # In model, NLP col is TfidfVectorized and then run through SVD
 nlp_cols  = ['blurb']
@@ -44,6 +25,42 @@ cat_cols  = ['country', 'spotlight', 'staff_pick', 'currency']
 
 # Numerical features used in model:
 num_cols  = ['backers_count', 'goal', 'campaign_length']
+
+model_cols = num_cols + cat_cols + nlp_cols
+
+# Load training and test data frames in from pickle:
+target    = 'state'
+df_train  = pd.read_pickle('./df_train.pkl')
+df_test   = pd.read_pickle('./df_test.pkl')
+
+# Let's Create our own Kick Starter Campaign and Predict Whether it Would be Funded
+ks_description = "An App that helps you select a kickstarter project likely to succeed"
+
+ks_test = {'backers_count'  : [100],
+           'goal'           : [50000],
+           'campaign_length': [30],
+           'country'        : ['US'],
+           'spotlight'      : [False],
+           'staff_pick'     : [False],
+           'currency'       : ['USD'],
+           'blurb'          : [ks_description]
+           }
+
+
+#  Seperate Train/Test into X / y :
+X_train, y_train = df_train.drop(columns=[target]), df_train[target]
+X_test, y_test   = df_test.drop(columns=[target]), df_test[target]
+
+# Remove columns not used by model so we can add out kick starter
+X_train = X_train[model_cols]
+X_test  = X_test[model_cols]
+
+my_ks = pd.DataFrame.from_dict(ks_test)
+
+X_test = pd.concat([X_test, my_ks])
+
+# %%
+X_test.tail(1)
 
 # %% 
 # Select numerical features from training/test set
@@ -76,13 +93,13 @@ dtm_test_num  = dtm_train_test_num[n1:n1+n2]
 # 6. One Hot Encode Created Feature
 feature , figsize, num_ngrams, ngram_range = 'blurb', (20,20), 50, (1,2)
 
-X_train, X_test = plot_and_add_hi_freq_feature(X_train, y_train, X_test, feature, ngram_range, num_ngrams, figsize)
+X_train, X_test, vect, success, fail = plot_and_add_hi_freq_feature(X_train, y_train, X_test, feature, ngram_range, num_ngrams, figsize)
 # %%
 # Set Parameters for TfidfVectorizer:
 tfidf_def = {
     'max_df': .7,
     'min_df': .2,
-    'max_features': 300,
+    'max_features': 30,
 }
 
 # Set Parameters for Singular Value Decomposition
@@ -101,35 +118,40 @@ dtm_test  = np.concatenate([dtm_test, dtm_test_num], axis=1)
 
 # %%
 # Initialize RandomForestClassifier with default setting and fit model on test
-clf                 = RandomForestClassifier()
-clf                 = clf.fit(dtm_train, y_train)
+clf = RandomForestClassifier()
+clf = clf.fit(dtm_train, y_train)
 
 # %%
 # Predict target for test data and calculate accuracy:
-y_pred = clf.predict(dtm_test)
-score  = accuracy_score(y_pred, y_test)
+y_pred = clf.predict(dtm_test[0:n2-1])
+score  = accuracy_score(y_pred, y_test[0:n2-1])
 print(score)
 
+y_pred_my_ks = y_pred[-1]
+print(y_pred_my_ks)
+
+
 # %% INWORK
-from sklearn.neighbors import NearestNeighbors
-nn = NearestNeighbors(n_neighbors=5, algorithm="kd_tree")
-
-# test description:
-ks_description = "An App that helps you select a kickstarter project likely to succeed"
-
-# add ideal description to end of job_listing DataFrame (copy and create new df)
-job_listing_w_ideal = job_listing.copy()
-job_listing_w_ideal.loc[len(job_listing.index)] = [ideal_description, 'Data Scientist']
-
-# vectorize job_listing w/ ideal description added using Tfidf 
-# this step is required if our ideal posting introduces any new vocabulary
-wc_ideal, dtm_ideal = vec(job_listing_w_ideal, 'TfidfVectorizer')
-
+nn = NearestNeighbors(n_neighbors=6, algorithm="kd_tree")
 # Fit on DTM
-nn.fit(dtm_ideal)
+nn.fit(dtm_test)
 
 # Pull our added ideal description to query listing
-doc_vector = [dtm_ideal.iloc[len(dtm_ideal)-1]]
+doc_vector = [dtm_test[-1]]
 
 # Query Using kneighbors 
 neigh_dist, neigh_ind = nn.kneighbors(doc_vector)
+
+neigh_ind = neigh_ind.flatten()
+nearest = X_test['blurb'].iloc[neigh_ind[1:]]
+# %%
+print(nearest.iloc[0])
+print(nearest.iloc[1])
+print(nearest.iloc[2])
+print(nearest.iloc[3])
+
+# %%
+# y_pred_train = clf.predict(dtm_train)
+# train_score  = accuracy_score(y_pred_train, y_train)
+
+# print(train_score)

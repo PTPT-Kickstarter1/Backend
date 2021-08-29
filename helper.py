@@ -25,7 +25,7 @@ def blurb_and_gram_count(X_train_in, X_test_in, tfidf_def=None, SVD_def=None, in
         X_train_in (DataFrame): X Training Set in, after plot_and_add_hi_freq feature is run
         X_test_in (DataFrame: X Test Set in, after plot_and_add_hi_freq feature is run
         tfidf_def (Dict, optional): Input Args to Initialize TfidfVectorizer. Defaults to None.
-        SVD_def (Dict, optional): nput Args to Initialize SVD. Defaults to None.
+        SVD_def (Dict, optional): Input Args to Initialize SVD. Defaults to None.
         include_text (bool, optional): . Defaults to True.
 
     Returns:
@@ -54,7 +54,9 @@ def blurb_and_gram_count(X_train_in, X_test_in, tfidf_def=None, SVD_def=None, in
         dtm = pd.DataFrame()
     
     # One Hot Encode Our Added Feature (gram_count_cols)
-    ohe            = ohe_gram_count_cols(X)
+    print(X.columns)
+    X_added_cols = X[['successful_blurb', 'failed_blurb']]
+    ohe            = ohe_gram_count_cols(X_added_cols)
     
     # Concat blurb Document Term Matrix and One Hot Encoded gram count cols:
     dtm            = pd.concat([dtm, ohe], axis=1, ignore_index=True)
@@ -388,4 +390,4 @@ def plot_and_add_hi_freq_feature(X_train_in,
     X_train = X_combined.iloc[0:n1]
     X_test  = X_combined.iloc[n1:n1 + n2]
 
-    return X_train, X_test
+    return X_train, X_test, vect, success, fail
